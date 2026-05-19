@@ -203,6 +203,12 @@ cython_debug/
 # Temporary file for partial code execution
 tempCodeRunnerFile.py
 
+# SolarChain-Eval generated artifacts
+outputs/runs/*
+!outputs/runs/.gitkeep
+figures/*
+!figures/.gitkeep
+
 # Ruff stuff:
 .ruff_cache/
 

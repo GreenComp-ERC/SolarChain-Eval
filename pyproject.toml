@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "solarchain-eval"
+version = "0.1.0"
+description = "Physics-constrained benchmark for trustworthy economic agents in decentralized energy markets."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "gymnasium>=0.29,<1.1",
+  "stable-baselines3>=2.3,<3",
+  "torch>=2.2",
+  "numpy>=1.24",
+  "pandas>=1.5",
+  "matplotlib>=3.7",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
