@@ -1,51 +1,16 @@
-# Linux Paper Experiment Pipeline
+# SolarChain-Eval KDD Paper Pipeline
 
-This folder contains the Linux bash workflow for producing the full paper data and figures. Run all commands from the `SolarChain-Eval` repository root. The expected conda environment is `SolarChain-rl`.
+This folder contains the main experiment pipeline for the planned KDD Workshop on Evaluation and Trustworthiness of Agentic AI submission. Run all commands from the `SolarChain-Eval` repository root. The expected conda environment is `SolarChain-rl`.
 
-## 0. Output Layout
+The paper pipeline now uses the 2026-04 monthly five-city dataset as the primary benchmark data:
 
-The pipeline separates two levels of output:
+- Config: `configs/month_2026_04.yaml`
+- Dataset: `data/datasets_2026_04_month`
+- Window: `[2026-04-01, 2026-05-01)`, 720 hourly timestamps
+- Cities: Beijing, Shanghai, Chengdu, Shenzhen, Hangzhou
+- Episode design: `episode_steps=24`; each reset samples one complete day from the month
 
-- `outputs/runs/<run_id>/`: one concrete benchmark run, such as a main six-baseline run or a no-physics-penalty ablation run.
-- `outputs/paper_runs/<paper_run_id>/`: one paper experiment batch that groups the main run, ablation run, figures, metadata, and result manifest.
-
-Every invocation of `02_run_paper_experiments.sh` creates a new `paper_run_id` by default. You can also set it manually for hyperparameter testing.
-
-Example layout:
-
-```text
-outputs/
-  runs/
-    physics_penalty_2p0_main/
-      metrics.csv
-      summary.json
-      actions.csv
-      city_hour_policy.csv
-      config_snapshot.json
-      run_metadata.json
-      models/
-    physics_penalty_2p0_no_physics_penalty/
-      ...
-  paper_runs/
-    physics_penalty_2p0/
-      paper_run_metadata.json
-      main_run.txt
-      ablation_run.txt
-      PAPER_RESULTS.md
-      figures/
-        main/
-        ablation_no_physics_penalty/
-```
-
-Each run directory records:
-
-- `metrics.csv`: per-policy, per-episode metrics.
-- `summary.json`: policy-level averages, including `slippage_reduction_vs_static`.
-- `actions.csv`: hourly actions, liquidity, slippage, physical violation, and market state.
-- `city_hour_policy.csv`: city-hour reward and liquidity split.
-- `config_snapshot.json`: resolved benchmark config.
-- `run_metadata.json`: command, CLI arguments, git commit, git status, model paths, and resolved config.
-- `models/<algo>/<algo>_model.zip`: trained PPO/SAC/DQN models for full baseline runs.
+`SolarSave` remains read-only. Dataset generation, caches, runs, figures, and paper manifests all live in `SolarChain-Eval`.
 
 ## 1. Setup
 
@@ -55,7 +20,7 @@ First-time setup:
 bash paper_pipeline/00_setup_linux.sh
 ```
 
-If the Linux machine does not have the conda environment yet:
+If the conda environment does not exist yet:
 
 ```bash
 conda create -n SolarChain-rl python=3.10 -y
@@ -64,7 +29,27 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
-## 2. Smoke Check
+## 2. Monthly Data
+
+The smoke and full paper scripts automatically create the monthly dataset if it is missing:
+
+```bash
+python scripts/generate_monthly_datasets.py \
+  --start-date 2026-04-01 \
+  --end-date 2026-05-01 \
+  --output-dir data/datasets_2026_04_month \
+  --seed 20260511
+```
+
+Expected validation values:
+
+- `urban_energy_nodes.csv`: 50 rows
+- `spatiotemporal_generation.csv`: 36000 rows
+- `market_liquidity.csv`: 720 rows
+- unique generation timestamps: 720
+- FDIA rows: about 1800
+
+## 3. Smoke Check
 
 Before any long experiment:
 
@@ -72,9 +57,9 @@ Before any long experiment:
 bash paper_pipeline/01_smoke_check.sh
 ```
 
-This checks Python compilation, built-in policy evaluation, short DQN training, and figure generation.
+The smoke check ensures the monthly dataset exists, validates the five-city/720-hour shape, compiles Python files, evaluates static/random/myopic policies, trains a tiny DQN model, and generates smoke figures.
 
-## 3. Full Paper Experiment
+## 4. Full Paper Experiment
 
 Default run:
 
@@ -84,7 +69,10 @@ bash paper_pipeline/02_run_paper_experiments.sh
 
 Default parameters:
 
-- `CONFIG=configs/default.yaml`
+- `CONFIG=configs/month_2026_04.yaml`
+- `DATA_DIR=data/datasets_2026_04_month`
+- `DATA_START_DATE=2026-04-01`
+- `DATA_END_DATE=2026-05-01`
 - `TIMESTEPS=100000`
 - `EPISODES=10`
 - `PAPER_RUN_ID=<utc_timestamp>_paper`
@@ -92,18 +80,40 @@ Default parameters:
 Recommended final paper run:
 
 ```bash
-PAPER_RUN_ID=paper_final TIMESTEPS=300000 EPISODES=20 bash paper_pipeline/02_run_paper_experiments.sh
+PAPER_RUN_ID=paper_final TIMESTEPS=300000 EPISODES=30 bash paper_pipeline/02_run_paper_experiments.sh
 ```
 
 The script runs:
 
-1. Main six-baseline benchmark: PPO, SAC, DQN, Static 1:3, Random, Myopic Greedy.
-2. No-physics-penalty ablation with the same baseline set.
-3. Main figures.
-4. Ablation figures.
-5. `PAPER_RESULTS.md` manifest for paper tables and figures.
+1. Ensure and validate the 2026-04 monthly five-city dataset.
+2. Main six-baseline benchmark: PPO, SAC, DQN, Static 1:3, Random, Myopic Greedy.
+3. No-physics-penalty ablation with the same baseline set.
+4. Main and ablation figures.
+5. `PAPER_RESULTS.md` and `dataset_summary.json` manifests for paper tables and figures.
 
-## 4. Hyperparameter Testing
+## 5. Output Layout
+
+Each concrete run goes to `outputs/runs/<run_id>/`:
+
+- `metrics.csv`
+- `summary.json`
+- `actions.csv`
+- `city_hour_policy.csv`
+- `config_snapshot.json`
+- `run_metadata.json`
+- `models/<algo>/<algo>_model.zip`
+
+Each paper batch goes to `outputs/paper_runs/<paper_run_id>/`:
+
+- `paper_run_metadata.json`
+- `dataset_summary.json`
+- `main_run.txt`
+- `ablation_run.txt`
+- `PAPER_RESULTS.md`
+- `figures/main/*.png`
+- `figures/ablation_no_physics_penalty/*.png`
+
+## 6. Hyperparameter Testing
 
 Use a unique `PAPER_RUN_ID` for every parameter test:
 
@@ -113,12 +123,12 @@ PAPER_RUN_ID=lr_3e-4 TIMESTEPS=100000 EPISODES=10 bash paper_pipeline/02_run_pap
 PAPER_RUN_ID=gamma_0p995 TIMESTEPS=100000 EPISODES=10 bash paper_pipeline/02_run_paper_experiments.sh
 ```
 
-If a parameter lives in YAML, copy the default config and edit the copy:
+If a parameter lives in YAML, copy the monthly config and edit the copy:
 
 ```bash
-cp configs/default.yaml configs/physics_penalty_4p0.yaml
-# Edit configs/physics_penalty_4p0.yaml: reward.physics_penalty = 4.0
-PAPER_RUN_ID=physics_penalty_4p0 CONFIG=configs/physics_penalty_4p0.yaml bash paper_pipeline/02_run_paper_experiments.sh
+cp configs/month_2026_04.yaml configs/month_2026_04_physics_penalty_4p0.yaml
+# Edit reward.physics_penalty = 4.0
+PAPER_RUN_ID=month_2026_04_physics_penalty_4p0 CONFIG=configs/month_2026_04_physics_penalty_4p0.yaml bash paper_pipeline/02_run_paper_experiments.sh
 ```
 
 Recommended low-cost sensitivity checks:
@@ -127,15 +137,15 @@ Recommended low-cost sensitivity checks:
 - `training.learning_rate`: `0.0001`, `0.0003`, `0.001`
 - `training.gamma`: `0.95`, `0.98`, `0.995`
 
-The most important sweep is `reward.physics_penalty`, because it directly supports the trustworthiness and safety-utility frontier claims.
-
-## 5. Regenerate Figures For Existing Runs
+## 7. Regenerate Figures
 
 ```bash
 bash paper_pipeline/03_make_figures_for_run.sh outputs/runs/<run_id> outputs/paper_runs/<paper_run_id>/figures/custom
 ```
 
-## 6. Paper Tables And Figures
+By default, this uses `configs/month_2026_04.yaml`. Override with `CONFIG=<path>` only when regenerating figures for a run produced with a non-default config.
+
+## 8. Paper Tables And Figures
 
 Use the main run `summary.json` for the main comparison table:
 
@@ -159,18 +169,18 @@ Use these figures from each `paper_run_id`:
 - `outputs/paper_runs/<paper_run_id>/figures/main/city_hour_liquidity_heatmap.png`
 - `outputs/paper_runs/<paper_run_id>/figures/ablation_no_physics_penalty/*.png`
 
-## 7. Logging
+## 9. Logging
 
 For long runs, keep terminal logs inside the same paper run directory:
 
 ```bash
 mkdir -p outputs/paper_runs/paper_final
-PAPER_RUN_ID=paper_final TIMESTEPS=300000 EPISODES=20 bash paper_pipeline/02_run_paper_experiments.sh 2>&1 | tee outputs/paper_runs/paper_final/full_run.log
+PAPER_RUN_ID=paper_final TIMESTEPS=300000 EPISODES=30 bash paper_pipeline/02_run_paper_experiments.sh 2>&1 | tee outputs/paper_runs/paper_final/full_run.log
 ```
 
-## 8. Notes
+## 10. Notes
 
-- `SolarSave` is not used by this pipeline and should remain unchanged.
+- The primary KDD paper evidence should come from the monthly 2026-04 pipeline, not `configs/default.yaml`.
+- The full run may need network access once to populate the Open-Meteo cache if `data/cache/` is empty.
 - Scripts use `set -euo pipefail`, so any failed step stops the pipeline.
 - If an SB3 baseline is unstable on a target machine, keep the successful outputs and document the limitation in the paper.
-

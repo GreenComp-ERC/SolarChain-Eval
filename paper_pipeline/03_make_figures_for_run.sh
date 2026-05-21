@@ -14,10 +14,13 @@ conda activate SolarChain-rl
 
 RUN_DIR="$1"
 FIGURES_DIR="${2:-figures/$(basename "$RUN_DIR")}"
+CONFIG="${CONFIG:-configs/month_2026_04.yaml}"
 
 python scripts/make_figures.py \
+  --config "$CONFIG" \
   --run-dir "$RUN_DIR" \
   --figures-dir "$FIGURES_DIR"
 
+echo "Config: $CONFIG"
 echo "Figures written to $FIGURES_DIR"
 

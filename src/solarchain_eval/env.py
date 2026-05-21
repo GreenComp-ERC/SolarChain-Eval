@@ -27,6 +27,7 @@ class SolarChainBenchmarkEnv(gym.Env):
             self.action_space = spaces.Box(low=0.0, high=1.0, shape=(3,), dtype=np.float32)
         self.observation_space = spaces.Box(low=-10.0, high=10.0, shape=(12,), dtype=np.float32)
         self._step = 0
+        self._episode_start_hour = 0
         self._liquidity = self.config.market.initial_liquidity
         self._token_price = self.config.market.initial_token_price
         self._peak_price = self._token_price
@@ -40,6 +41,7 @@ class SolarChainBenchmarkEnv(gym.Env):
         if seed is not None:
             self._rng = np.random.default_rng(seed)
         self._step = 0
+        self._episode_start_hour = self._sample_episode_start_hour(options)
         self._liquidity = self.config.market.initial_liquidity
         self._token_price = self.config.market.initial_token_price
         self._peak_price = self._token_price
@@ -52,8 +54,9 @@ class SolarChainBenchmarkEnv(gym.Env):
     def step(self, action):
         actual = self._decode_action(action)
         reward_ratio, liquidity_ratio, burn_rate = map(float, actual)
-        hour = self._step % 24
-        rows = self.data.city_hour[self.data.city_hour["hour"].eq(hour)]
+        absolute_hour = self._current_absolute_hour()
+        hour = absolute_hour % 24
+        rows = self.data.city_hour[self.data.city_hour["absolute_hour"].eq(absolute_hour)]
         verified_mwh = float(rows["verified_W"].sum() / 1_000_000.0)
         reported_mwh = float(rows["reported_W"].sum() / 1_000_000.0)
         pmax_mwh = float(rows["pmax_W"].sum() / 1_000_000.0)
@@ -61,10 +64,10 @@ class SolarChainBenchmarkEnv(gym.Env):
         rejected_reported_mwh = float(rows["rejected_reported_W"].sum() / 1_000_000.0)
         raw_physics_record_rate = float(rows["violation_count"].sum() / max(rows["record_count"].sum(), 1))
 
-        trade_rows = self.data.trades[self.data.trades["hour"].eq(hour)]
+        trade_rows = self.data.trades[self.data.trades["absolute_hour"].eq(absolute_hour)]
         demand_mwh = float(trade_rows["energy_purchased_MW"].sum())
         if demand_mwh <= 0:
-            market_hour = self.data.market[self.data.market["hour"].eq(hour)]
+            market_hour = self.data.market[self.data.market["absolute_hour"].eq(absolute_hour)]
             demand_mwh = max(float(market_hour["total_verified_MW"].sum()), 0.001)
 
         unsafe_supply = max(rejected_reported_mwh, excess_mwh, max(reported_mwh - pmax_mwh, 0.0))
@@ -120,6 +123,8 @@ class SolarChainBenchmarkEnv(gym.Env):
         truncated = self._step >= self.config.episode_steps
         terminated = False
         self._last_info = {
+            "absolute_hour": absolute_hour,
+            "episode_start_hour": self._episode_start_hour,
             "hour": hour,
             "reward_ratio": reward_ratio,
             "liquidity_ratio": liquidity_ratio,
@@ -150,6 +155,24 @@ class SolarChainBenchmarkEnv(gym.Env):
             return decode_discrete_action(int(action), self.config)
         return decode_continuous_action(np.asarray(action, dtype=np.float32), self.config)
 
+    def _sample_episode_start_hour(self, options: dict[str, Any] | None = None) -> int:
+        if options and "start_hour" in options:
+            start_hour = int(options["start_hour"])
+            upper_bound = max(self.data.hour_count - self.config.episode_steps, 0)
+            return int(np.clip(start_hour, 0, upper_bound))
+        if self.data.hour_count <= self.config.episode_steps:
+            return 0
+        latest_start = self.data.hour_count - self.config.episode_steps
+        daily_starts = np.arange(0, latest_start + 1, 24, dtype=np.int64)
+        if len(daily_starts) == 0:
+            return 0
+        return int(self._rng.choice(daily_starts))
+
+    def _current_absolute_hour(self) -> int:
+        if self.data.hour_count <= 0:
+            return self._episode_start_hour + self._step
+        return min(self._episode_start_hour + self._step, self.data.hour_count - 1)
+
     def _allocate_city_rewards(self, rows, reward_tokens: float, liquidity_ratio: float) -> dict[str, float]:
         total_verified = max(float(rows["verified_W"].sum()), 1e-9)
         city_rewards: dict[str, float] = {}
@@ -161,14 +184,15 @@ class SolarChainBenchmarkEnv(gym.Env):
         return city_rewards
 
     def _observation(self) -> np.ndarray:
-        hour = self._step % 24
-        rows = self.data.city_hour[self.data.city_hour["hour"].eq(hour)]
-        market = self.data.market[self.data.market["hour"].eq(hour)]
+        absolute_hour = self._current_absolute_hour()
+        hour = absolute_hour % 24
+        rows = self.data.city_hour[self.data.city_hour["absolute_hour"].eq(absolute_hour)]
+        market = self.data.market[self.data.market["absolute_hour"].eq(absolute_hour)]
         verified_mwh = float(rows["verified_W"].sum() / 1_000_000.0)
         reported_mwh = float(rows["reported_W"].sum() / 1_000_000.0)
         pmax_mwh = float(rows["pmax_W"].sum() / 1_000_000.0)
         violation_rate = float(rows["violation_count"].sum() / max(rows["record_count"].sum(), 1))
-        demand_mwh = float(self.data.trades[self.data.trades["hour"].eq(hour)]["energy_purchased_MW"].sum())
+        demand_mwh = float(self.data.trades[self.data.trades["absolute_hour"].eq(absolute_hour)]["energy_purchased_MW"].sum())
         static_slippage = float(market["slippage_solarchain_pct"].mean()) if not market.empty else 0.0
         gap = (verified_mwh - demand_mwh) / max(demand_mwh, 1e-6)
         obs = np.array(

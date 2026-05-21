@@ -12,15 +12,18 @@ fi
 source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate SolarChain-rl
 
+python -m pip install -r requirements.txt
 python -m pip install -e .
 
 python - <<'PY'
 import sys
 import gymnasium
+import pvlib
 import stable_baselines3
 
 print("Python:", sys.executable)
 print("Gymnasium:", gymnasium.__version__)
+print("pvlib:", pvlib.__version__)
 print("Stable-Baselines3:", stable_baselines3.__version__)
 PY
 

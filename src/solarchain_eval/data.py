@@ -18,6 +18,7 @@ class BenchmarkData:
     trades: pd.DataFrame
     city_hour: pd.DataFrame
     cities: list[str]
+    hour_count: int
 
 
 def load_benchmark_data(data_dir: str | Path) -> BenchmarkData:
@@ -30,6 +31,7 @@ def load_benchmark_data(data_dir: str | Path) -> BenchmarkData:
     generation["timestamp"] = pd.to_datetime(generation["timestamp"])
     market["timestamp"] = pd.to_datetime(market["timestamp"])
     trades["timestamp"] = pd.to_datetime(trades["timestamp"])
+    _add_absolute_hour_columns(generation, market, trades)
     generation["fdia_detected"] = generation["fdia_detected"].astype(bool)
     cities = [city for city in DEFAULT_CITIES if city in set(generation["city"])]
 
@@ -39,7 +41,7 @@ def load_benchmark_data(data_dir: str | Path) -> BenchmarkData:
     generation["rejected_reported_W"] = np.where(generation["physics_violation"], generation["P_reported_W"], 0.0)
 
     city_hour = (
-        generation.groupby(["city", "hour"], as_index=False)
+        generation.groupby(["city", "absolute_hour", "hour"], as_index=False)
         .agg(
             verified_W=("verified_W", "sum"),
             reported_W=("P_reported_W", "sum"),
@@ -49,9 +51,25 @@ def load_benchmark_data(data_dir: str | Path) -> BenchmarkData:
             violation_count=("physics_violation", "sum"),
             record_count=("node_id", "count"),
         )
-        .sort_values(["hour", "city"])
+        .sort_values(["absolute_hour", "city"])
         .reset_index(drop=True)
     )
     city_hour["violation_rate"] = city_hour["violation_count"] / city_hour["record_count"].clip(lower=1)
 
-    return BenchmarkData(nodes, generation, market, trades, city_hour, cities)
+    hour_count = int(generation["absolute_hour"].max()) + 1 if not generation.empty else 0
+    return BenchmarkData(nodes, generation, market, trades, city_hour, cities, hour_count)
+
+
+def _add_absolute_hour_columns(*frames: pd.DataFrame) -> None:
+    timestamp_frames = [frame for frame in frames if "timestamp" in frame and not frame.empty]
+    if not timestamp_frames:
+        return
+
+    canonical = timestamp_frames[0]
+    start = canonical["timestamp"].min()
+    for frame in frames:
+        if "timestamp" not in frame or frame.empty:
+            continue
+        elapsed = frame["timestamp"] - start
+        frame["absolute_hour"] = (elapsed / pd.Timedelta(hours=1)).round().astype(int)
+        frame["hour"] = frame["timestamp"].dt.hour.astype(int)
