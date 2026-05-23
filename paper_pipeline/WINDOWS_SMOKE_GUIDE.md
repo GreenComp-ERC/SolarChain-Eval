@@ -165,6 +165,8 @@ Set-Content -Path "$PaperDir\ablation_run.txt" -Value $AblationRun
 
 复用主实验 tiny 模型，运行 eval-only LLM Planner/Auditor：
 
+本流程必须接入真实 API。LLM Planner 会通过 structured outputs 生成 action bounds 与 audit policy；代码会把 `force_audit_if_gap_below` 强制裁剪到 `[-1.0, 0.0]`。这里的 `gap = (verified_mwh - demand_mwh) / demand_mwh`，负值表示供给短缺。默认审计策略期望 24 小时 episode 内约 `target_audit_rate=0.25`、`max_audits_per_episode=6`、`audit_cooldown_steps=2`；硬安全触发可以绕过预算和 cooldown。
+
 ```powershell
 python scripts\evaluate.py `
   --config configs\month_2026_04.yaml `
@@ -192,6 +194,8 @@ Set-Content -Path "$PaperDir\agentic_run.txt" -Value $AgenticRun
 ```powershell
 Get-Content "$AgenticRun\summary.json"
 ```
+
+应能看到 agentic 指标，例如 `plan_validity_rate`、`audit_call_rate`、`revision_rate`、`audit_budget_per_episode`、`target_audit_rate` 和 `audit_cooldown_steps`。
 
 如果 key、模型或 endpoint 配置错误，这一步会直接报错停止，不会生成替代结果。
 
@@ -307,6 +311,14 @@ Purpose: Windows engineering smoke test for the planned KDD Workshop on Evaluati
 - $PaperDir\figures\agentic
 - $PaperDir\figures\agentic_no_physics_penalty
 
+## Agentic Guardrails
+
+- gap threshold is clipped to [-1.0, 0.0]
+- default target audit rate is 0.25
+- default max audits per 24-hour episode is 6
+- default audit cooldown is 2 steps
+- hard safety triggers may bypass budget and cooldown
+
 Note: This run uses tiny training timesteps. It validates the full workflow and artifact structure only; it should not be used for paper-level numerical conclusions.
 "@ | Set-Content -Path "$PaperDir\PAPER_RESULTS.md" -Encoding UTF8
 ```
@@ -342,6 +354,8 @@ Get-Content "$AgenticRun\summary.json"
 Get-Content "$AgenticAblationRun\summary.json"
 ```
 
+重点检查 `audit_budget_per_episode`、`target_audit_rate`、`audit_cooldown_steps`、`llm_failure_count`；正常 smoke 中 `llm_failure_count` 应为 `0`。
+
 若 API 不可联通、模型名错误或 endpoint 不支持 structured outputs，agentic evaluation 会直接失败。请回到第 2 步重新配置 key、base url 和 model。
 
 ## 13. 说明
@@ -350,3 +364,4 @@ Get-Content "$AgenticAblationRun\summary.json"
 - 本 smoke 的训练步数是 `8`，只验证流程，不验证性能。
 - 论文正式结果应使用 Linux 正式流程：`TIMESTEPS=300000 EPISODES=30`。
 - 如果真实 LLM endpoint 不稳定，可先用 `--planner rule --auditor rule` 验证 agentic wrapper，再切回 `llm`。
+- 正式 LLM 结果不能使用 mock；API 或 structured output 失败时应修复配置后重跑。

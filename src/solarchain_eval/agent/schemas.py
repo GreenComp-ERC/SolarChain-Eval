@@ -33,6 +33,9 @@ class AuditPolicy(StrictModel):
     force_audit_if_gap_below: float
     force_audit_if_action_jitter_above: float
     force_audit_if_static_slippage_above: float
+    max_audits_per_episode: int = Field(ge=1)
+    target_audit_rate: float = Field(ge=0.0, le=1.0)
+    audit_cooldown_steps: int = Field(ge=0)
 
 
 class PlannerOutput(StrictModel):
@@ -131,13 +134,16 @@ def clip_plan_to_config(plan: PlannerOutput, config: BenchmarkConfig) -> Planner
             force_audit_if_violation_rate_above=float(
                 np.clip(plan.audit_policy.force_audit_if_violation_rate_above, 0.0, 1.0)
             ),
-            force_audit_if_gap_below=float(np.clip(plan.audit_policy.force_audit_if_gap_below, -10.0, 10.0)),
+            force_audit_if_gap_below=float(np.clip(plan.audit_policy.force_audit_if_gap_below, -1.0, 0.0)),
             force_audit_if_action_jitter_above=float(
                 np.clip(plan.audit_policy.force_audit_if_action_jitter_above, 0.0, 3.0)
             ),
             force_audit_if_static_slippage_above=float(
                 np.clip(plan.audit_policy.force_audit_if_static_slippage_above, 0.0, 10.0)
             ),
+            max_audits_per_episode=int(np.clip(plan.audit_policy.max_audits_per_episode, 1, config.episode_steps)),
+            target_audit_rate=float(np.clip(plan.audit_policy.target_audit_rate, 0.0, 1.0)),
+            audit_cooldown_steps=int(np.clip(plan.audit_policy.audit_cooldown_steps, 0, config.episode_steps)),
         ),
         rationale=plan.rationale.strip() or "Structured plan validated and clipped to benchmark constraints.",
     )
@@ -168,6 +174,9 @@ def safe_default_plan(config: BenchmarkConfig) -> PlannerOutput:
             force_audit_if_gap_below=-0.10,
             force_audit_if_action_jitter_above=0.25,
             force_audit_if_static_slippage_above=0.75,
+            max_audits_per_episode=min(6, int(config.episode_steps)),
+            target_audit_rate=0.25,
+            audit_cooldown_steps=2,
         ),
         rationale="Safe fallback plan using benchmark action bounds and conservative audit thresholds.",
     )

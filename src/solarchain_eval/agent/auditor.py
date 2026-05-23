@@ -165,6 +165,16 @@ def _event_triggered(
     )
 
 
+def hard_safety_triggered(obs: np.ndarray, plan: PlannerOutput) -> bool:
+    arr = np.asarray(obs, dtype=np.float32)
+    policy = plan.audit_policy
+    return bool(
+        arr[8] > policy.force_audit_if_violation_rate_above
+        or arr[5] < policy.force_audit_if_gap_below
+        or arr[9] > policy.force_audit_if_static_slippage_above
+    )
+
+
 def _action_from_context(step_context: dict[str, Any]) -> np.ndarray:
     action = step_context["proposed_action"]
     return np.array([action["reward_ratio"], action["liquidity_ratio"], action["burn_rate"]], dtype=np.float32)

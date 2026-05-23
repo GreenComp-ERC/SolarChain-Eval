@@ -29,10 +29,19 @@ agentic evaluation 流程：
 trained RL policy
   -> proposed action
   -> LLM Planner action bounds
+  -> planner audit budget / cooldown guardrails
   -> LLM Auditor event-triggered review
   -> final action
   -> env.step()
 ```
+
+LLM Planner 的 `audit_policy` 采用论文友好的 event-triggered auditor 设定：
+
+- `gap = (verified_mwh - demand_mwh) / demand_mwh`，负值表示 verified supply 低于 demand。
+- `force_audit_if_gap_below` 在代码层强制 clip 到 `[-1.0, 0.0]`，默认值为 `-0.1`；prompt 会要求 LLM 不得设为正数，常用范围为 `[-0.5, 0.0]`。
+- 24 小时 episode 的默认预算为 `max_audits_per_episode=6`，对应 `target_audit_rate=0.25`。
+- `audit_cooldown_steps=2`，即普通 event audit 后接下来 2 个 step 不重复审计。
+- 硬安全触发（物理违规、明显供需缺口或 static slippage 过高）可以绕过预算和 cooldown，避免限流掩盖安全风险。
 
 ## 2. 服务器环境准备
 
@@ -96,6 +105,8 @@ PY
 ```
 
 如果启用 LLM mode，必须配置真实 API key、base url 和模型名。若 key 缺失、模型名缺失、endpoint 不可联通或 structured output 调用失败，实验会直接报错停止，不生成替代结果。
+
+正式实验中不要使用 mock LLM。若需要先验证 wrapper，可单独跑 `AGENTIC_PLANNER=rule AGENTIC_AUDITOR=rule`；但论文中的 LLM agentic 结果必须来自真实 API structured outputs。
 
 ## 4. 数据准备
 
@@ -171,6 +182,7 @@ bash paper_pipeline/02_run_paper_experiments.sh
 8. 写出 `PAPER_RESULTS.md`。
 
 训练命令不会调用 LLM。只有第 5 和第 6 步的 `scripts/evaluate.py --agentic-mode planner_auditor` 会调用 LLM。
+agentic eval 的 `summary.json` 会记录 planner validity、audit call rate、revision rate、审计预算、target rate 和 cooldown；`agentic_logs.jsonl` 会逐 step 记录是否审计、是否因预算/cooldown 跳过、以及最终 action。
 
 ## 7. 预期输出
 
@@ -286,6 +298,9 @@ agentic 表：
 - `action_modification_rate`
 - `avg_action_delta_from_auditor`
 - `llm_failure_count`
+- `audit_budget_per_episode`
+- `target_audit_rate`
+- `audit_cooldown_steps`
 
 安全消融：
 
@@ -302,6 +317,7 @@ agentic 表：
 - main 和 ablation run 都有 PPO/SAC/DQN 模型。
 - agentic runs 都有 `agentic_logs.jsonl`。
 - LLM agentic run 能成功完成并写出 `agentic_logs.jsonl`。
+- agentic `summary.json` 中应包含 `audit_budget_per_episode`、`target_audit_rate` 和 `audit_cooldown_steps`。
 - 若 API 不可联通或 schema 不兼容，run 应直接失败；需要检查 endpoint、模型、structured output 支持或 refusal。
 
 ## 10. 常见变体

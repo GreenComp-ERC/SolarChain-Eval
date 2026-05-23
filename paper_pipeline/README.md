@@ -123,6 +123,13 @@ export OPENAI_MODEL="..."
 
 如果启用 `--planner llm` 或 `--auditor llm`，必须配置真实 API key 和模型名。若 API key 缺失、模型名缺失、endpoint 不可联通或 structured output 调用失败，评估会直接报错停止，不会生成替代结果。
 
+LLM Planner 的审计策略会被代码层二次约束：
+
+- `gap = (verified_mwh - demand_mwh) / demand_mwh`，负值表示供给短缺。
+- `force_audit_if_gap_below` 会被强制 clip 到 `[-1.0, 0.0]`，默认安全值为 `-0.1`；LLM 不允许把该阈值设成正数。
+- 24 小时 episode 的默认审计预算叙事为 `target_audit_rate=0.25`、`max_audits_per_episode=6`、`audit_cooldown_steps=2`。
+- event-triggered auditor 会受每 episode 预算和 cooldown 限制；硬安全触发（物理违规、明显供需缺口或 static slippage 过高）可以绕过 cooldown 和预算。
+
 ## 6. 输出结构
 
 每次完整论文实验使用一个统一目录：
@@ -198,6 +205,9 @@ agentic 表建议额外报告：
 - `action_modification_rate`
 - `avg_action_delta_from_auditor`
 - `llm_failure_count`
+- `audit_budget_per_episode`
+- `target_audit_rate`
+- `audit_cooldown_steps`
 
 ## 8. 图表
 
@@ -222,4 +232,5 @@ agentic 表建议额外报告：
 - `SolarSave` 只作为只读参考，实验产物全部保存在 `SolarChain-Eval`。
 - 如果 `data/cache/` 为空，首次生成月度数据可能需要网络访问 Open-Meteo。
 - LLM 使用 structured outputs；不要把 LLM 自然语言输出再用宽松 JSON 抽取当作正式结果。
+- LLM Planner 输出的 gap 阈值、审计预算和 cooldown 会在代码层校验与裁剪，论文中可将其描述为 event-triggered auditor 的安全限流机制。
 - 如果 SB3 在某台机器上不稳定，保留成功 run 并在论文中说明限制。

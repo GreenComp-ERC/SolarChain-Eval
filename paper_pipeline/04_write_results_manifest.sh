@@ -104,6 +104,8 @@ Figures:
 
 Agentic evaluation reuses trained RL models and inserts an LLM Planner + LLM Auditor between policy action prediction and \`env.step()\`. The LLM is used only during evaluation and never during PPO/SAC/DQN training.
 
+The planner audit policy is validated after structured parsing. The gap field is \`(verified_mwh - demand_mwh) / demand_mwh\`; negative values indicate supply shortfall. \`force_audit_if_gap_below\` is clipped to \`[-1.0, 0.0]\`, with a default safe value of \`-0.1\`. The event-triggered auditor also records an episode audit budget, target audit rate, and cooldown. Hard safety triggers may bypass budget and cooldown.
+
 Agentic main run directory:
 
 \`\`\`text
@@ -147,6 +149,9 @@ Agentic metrics:
 - action_modification_rate
 - avg_action_delta_from_auditor
 - llm_failure_count
+- audit_budget_per_episode
+- target_audit_rate
+- audit_cooldown_steps
 
 ## Figure Mapping
 

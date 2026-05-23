@@ -8,7 +8,7 @@ import numpy as np
 from solarchain_eval.actions import encode_actual_action
 from solarchain_eval.config import BenchmarkConfig
 
-from .auditor import LLMAuditor, NoOpAuditor, RuleAuditor, build_audit_context
+from .auditor import LLMAuditor, NoOpAuditor, RuleAuditor, build_audit_context, hard_safety_triggered
 from .context import build_episode_context
 from .planner import LLMPlanner, RulePlanner, SafeDefaultPlanner
 from .schemas import PlannerOutput, action_dict, action_values_to_array, apply_plan_bounds
@@ -45,19 +45,39 @@ class AgenticActionProcessor:
             "action_modification_count": 0,
             "action_delta_sum": 0.0,
             "llm_failure_count": 0,
+            "audit_budget_per_episode": 0,
+            "target_audit_rate": 0.0,
+            "audit_cooldown_steps": 0,
         }
         self._planner_failure_seen = 0
         self._auditor_failure_seen = 0
+        self._step_index = 0
+        self._episode_audit_count = 0
+        self._last_audit_step = -10_000
 
     def reset(self, env: Any) -> PlannerOutput:
         episode_context = build_episode_context(env)
         self.current_plan = self.planner.plan(episode_context)
+        target_budget = int(round(float(self.current_plan.audit_policy.target_audit_rate) * float(self.config.episode_steps)))
+        self.current_plan.audit_policy.max_audits_per_episode = int(
+            np.clip(
+                min(self.current_plan.audit_policy.max_audits_per_episode, max(target_budget, 1)),
+                1,
+                self.config.episode_steps,
+            )
+        )
+        self.stats["audit_budget_per_episode"] = int(self.current_plan.audit_policy.max_audits_per_episode)
+        self.stats["target_audit_rate"] = float(self.current_plan.audit_policy.target_audit_rate)
+        self.stats["audit_cooldown_steps"] = int(self.current_plan.audit_policy.audit_cooldown_steps)
         self.stats["plan_count"] += 1
         if getattr(self.planner, "last_valid", True):
             self.stats["plan_valid_count"] += 1
         planner_failures = int(getattr(self.planner, "failure_count", 0))
         self.stats["llm_failure_count"] += max(planner_failures - self._planner_failure_seen, 0)
         self._planner_failure_seen = planner_failures
+        self._step_index = 0
+        self._episode_audit_count = 0
+        self._last_audit_step = -10_000
         return self.current_plan
 
     def process(
@@ -79,12 +99,8 @@ class AgenticActionProcessor:
         audit_payload: dict[str, Any] | None = None
         final = bounded
 
-        if self.agentic_config.agentic_mode == "planner_auditor" and self.auditor.should_audit(
-            obs,
-            bounded,
-            previous_action,
-            self.current_plan,
-        ):
+        should_audit, audit_skip_reason = self._should_call_auditor(obs, bounded, previous_action)
+        if self.agentic_config.agentic_mode == "planner_auditor" and should_audit:
             audit_called = True
             step_context = build_audit_context(obs, bounded, previous_action, self.current_plan, latest_info)
             audit = self.auditor.audit(step_context)
@@ -92,9 +108,13 @@ class AgenticActionProcessor:
             audit_decision = audit.decision
             audit_reason = audit.reason
             self.stats["audit_call_count"] += 1
+            self._episode_audit_count += 1
             if audit.decision == "revise":
                 final = action_values_to_array(audit.final_action)
                 self.stats["revision_count"] += 1
+            self._last_audit_step = self._step_index
+        elif self.agentic_config.agentic_mode == "planner_auditor":
+            audit_reason = audit_skip_reason
 
         delta = float(np.linalg.norm(final - original, ord=1))
         modified = bool(delta > 1e-6)
@@ -121,8 +141,44 @@ class AgenticActionProcessor:
             "action_modified": modified,
             "action_delta": delta,
             "reason": audit_reason,
+            "audit_budget_used": int(self._episode_audit_count),
+            "audit_budget_limit": int(self.current_plan.audit_policy.max_audits_per_episode),
+            "audit_cooldown_steps": int(self.current_plan.audit_policy.audit_cooldown_steps),
         }
+        self._step_index += 1
         return encode_actual_action(final, self.config), info, log_row
+
+    def _should_call_auditor(
+        self,
+        obs: np.ndarray,
+        bounded_action: np.ndarray,
+        previous_action: np.ndarray,
+    ) -> tuple[bool, str]:
+        if self.current_plan is None:
+            return False, "No planner policy available."
+        if self.agentic_config.agentic_mode != "planner_auditor":
+            return False, "Auditor disabled."
+        if self.agentic_config.audit_trigger == "always":
+            triggered = True
+        else:
+            triggered = self.auditor.should_audit(obs, bounded_action, previous_action, self.current_plan)
+        if not triggered:
+            return False, "Audit trigger not reached."
+
+        hard_trigger = hard_safety_triggered(obs, self.current_plan)
+        budget = int(self.current_plan.audit_policy.max_audits_per_episode)
+        if self._episode_audit_count >= budget and not hard_trigger:
+            return False, f"Audit budget exhausted ({budget} per episode)."
+
+        cooldown = int(self.current_plan.audit_policy.audit_cooldown_steps)
+        if (
+            cooldown > 0
+            and self._step_index - self._last_audit_step <= cooldown
+            and not hard_trigger
+        ):
+            return False, f"Audit cooldown active ({cooldown} steps)."
+
+        return True, "Audit trigger reached."
 
 
 def make_agentic_processor(
@@ -166,4 +222,7 @@ def agentic_metrics(stats: dict[str, Any], step_count: int) -> dict[str, Any]:
         "action_modification_rate": float(modification_count / max(step_count, 1)),
         "avg_action_delta_from_auditor": float(stats.get("action_delta_sum", 0.0) / max(step_count, 1)),
         "llm_failure_count": int(stats.get("llm_failure_count", 0)),
+        "audit_budget_per_episode": int(stats.get("audit_budget_per_episode", 0)),
+        "target_audit_rate": float(stats.get("target_audit_rate", 0.0)),
+        "audit_cooldown_steps": int(stats.get("audit_cooldown_steps", 0)),
     }

@@ -10,7 +10,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from solarchain_eval.agent.auditor import LLMAuditor
+from solarchain_eval.agent.auditor import LLMAuditor, RuleAuditor
 from solarchain_eval.agent.context import build_step_context
 from solarchain_eval.agent.llm_client import make_llm_client
 from solarchain_eval.agent.planner import LLMPlanner, RulePlanner
@@ -25,7 +25,7 @@ from solarchain_eval.agent.schemas import (
     validate_auditor_output,
     validate_planner_output,
 )
-from solarchain_eval.agent.wrappers import AgenticConfig
+from solarchain_eval.agent.wrappers import AgenticActionProcessor, AgenticConfig
 from solarchain_eval.config import load_config
 from solarchain_eval.evaluate import evaluate_policies
 from solarchain_eval.policies import make_builtin_policy
@@ -42,9 +42,12 @@ def test_planner_schema_validation_and_clipping():
         ),
         audit_policy=AuditPolicy(
             force_audit_if_violation_rate_above=2.0,
-            force_audit_if_gap_below=-20.0,
+            force_audit_if_gap_below=10.0,
             force_audit_if_action_jitter_above=9.0,
             force_audit_if_static_slippage_above=99.0,
+            max_audits_per_episode=99,
+            target_audit_rate=1.0,
+            audit_cooldown_steps=99,
         ),
         rationale="clip me",
     )
@@ -54,6 +57,9 @@ def test_planner_schema_validation_and_clipping():
     assert plan.action_bounds.reward_ratio == [config.market.min_reward_ratio, config.market.max_reward_ratio]
     assert plan.action_bounds.burn_rate == [0.0, config.market.max_burn_rate]
     assert plan.audit_policy.force_audit_if_violation_rate_above == 1.0
+    assert plan.audit_policy.force_audit_if_gap_below == 0.0
+    assert plan.audit_policy.max_audits_per_episode == config.episode_steps
+    assert plan.audit_policy.audit_cooldown_steps == config.episode_steps
 
 
 def test_auditor_schema_validation_and_action_sanitization():
@@ -91,6 +97,9 @@ class FakeStructuredClient:
                 force_audit_if_gap_below=-0.10,
                 force_audit_if_action_jitter_above=0.25,
                 force_audit_if_static_slippage_above=0.75,
+                max_audits_per_episode=6,
+                target_audit_rate=0.25,
+                audit_cooldown_steps=2,
             ),
             rationale="Fake structured API plan for tests.",
         )
@@ -173,6 +182,39 @@ def test_rule_agentic_eval_smoke(tmp_path):
     log_path = tmp_path / "agentic_logs.jsonl"
     assert log_path.exists()
     assert json.loads(log_path.read_text(encoding="utf-8").splitlines()[0])["policy"] == "static"
+
+
+def test_event_auditor_budget_cooldown_and_hard_trigger_bypass():
+    config = load_config()
+    config.episode_steps = 24
+    agentic_config = AgenticConfig(agentic_mode="planner_auditor", planner="rule", auditor="rule", audit_trigger="event")
+    processor = AgenticActionProcessor(
+        config=config,
+        planner=RulePlanner(config),
+        auditor=RuleAuditor(config),
+        agentic_config=agentic_config,
+    )
+    processor.current_plan = RulePlanner(config).plan({})
+    processor.current_plan.audit_policy.max_audits_per_episode = 2
+    processor.current_plan.audit_policy.audit_cooldown_steps = 2
+
+    obs = np.zeros(12, dtype=np.float32)
+    action = np.array([0.40, 0.45, 0.08], dtype=np.float32)
+    previous = np.zeros(3, dtype=np.float32)
+
+    _, _, first_log = processor.process(obs=obs, proposed_actual_action=action, previous_action=previous)
+    _, _, second_log = processor.process(obs=obs, proposed_actual_action=action, previous_action=previous)
+
+    assert first_log["audit_called"]
+    assert not second_log["audit_called"]
+    assert "cooldown" in second_log["reason"]
+
+    processor._episode_audit_count = processor.current_plan.audit_policy.max_audits_per_episode
+    hard_obs = obs.copy()
+    hard_obs[5] = -0.25
+    _, _, hard_log = processor.process(obs=hard_obs, proposed_actual_action=action, previous_action=previous)
+
+    assert hard_log["audit_called"]
 
 
 def test_agentic_eval_with_no_physics_penalty(tmp_path):

@@ -51,6 +51,9 @@ class RulePlanner:
                     force_audit_if_gap_below=-0.05,
                     force_audit_if_action_jitter_above=0.18,
                     force_audit_if_static_slippage_above=0.60,
+                    max_audits_per_episode=min(6, int(self.config.episode_steps)),
+                    target_audit_rate=0.25,
+                    audit_cooldown_steps=2,
                 ),
                 rationale="Rule planner selected conservative bounds due to episode-level risk signals.",
             )
@@ -67,6 +70,9 @@ class RulePlanner:
                     force_audit_if_gap_below=-0.10,
                     force_audit_if_action_jitter_above=0.25,
                     force_audit_if_static_slippage_above=0.75,
+                    max_audits_per_episode=min(6, int(self.config.episode_steps)),
+                    target_audit_rate=0.25,
+                    audit_cooldown_steps=2,
                 ),
                 rationale="Rule planner selected balanced bounds for a lower-risk episode.",
             )

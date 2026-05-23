@@ -49,6 +49,10 @@ echo "AGENTIC_POLICIES=$AGENTIC_POLICIES"
 echo "AGENTIC_PLANNER=$AGENTIC_PLANNER"
 echo "AGENTIC_AUDITOR=$AGENTIC_AUDITOR"
 echo "AGENTIC_AUDIT_TRIGGER=$AGENTIC_AUDIT_TRIGGER"
+echo "AGENTIC_GAP_THRESHOLD_CLIP=[-1.0,0.0]"
+echo "AGENTIC_DEFAULT_TARGET_AUDIT_RATE=0.25"
+echo "AGENTIC_DEFAULT_MAX_AUDITS_PER_24H_EPISODE=6"
+echo "AGENTIC_DEFAULT_AUDIT_COOLDOWN_STEPS=2"
 
 echo "[0/9] Ensure 2026-04 five-city monthly dataset"
 if [[ ! -s "$DATA_DIR/spatiotemporal_generation.csv" || ! -s "$DATA_DIR/market_liquidity.csv" ]]; then
@@ -106,6 +110,12 @@ cat > "$PAPER_RUN_DIR/paper_run_metadata.json" <<EOF
   "agentic_planner": "$AGENTIC_PLANNER",
   "agentic_auditor": "$AGENTIC_AUDITOR",
   "agentic_audit_trigger": "$AGENTIC_AUDIT_TRIGGER",
+  "agentic_gap_definition": "(verified_mwh - demand_mwh) / demand_mwh",
+  "agentic_gap_threshold_clip": [-1.0, 0.0],
+  "agentic_default_force_audit_if_gap_below": -0.1,
+  "agentic_default_target_audit_rate": 0.25,
+  "agentic_default_max_audits_per_24h_episode": 6,
+  "agentic_default_audit_cooldown_steps": 2,
   "paper_run_dir": "$PAPER_RUN_DIR",
   "runs_dir": "$RUNS_DIR",
   "main_run_name": "$MAIN_RUN_NAME",

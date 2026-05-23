@@ -64,6 +64,7 @@ SMOKE_RUN="$SMOKE_RUNS_DIR/builtin"
 echo "$SMOKE_RUN" > "$SMOKE_DIR/latest_builtin_run.txt"
 
 echo "[5/6] Eval-only LLM planner/auditor smoke with real API structured outputs"
+echo "Agentic guardrails: gap threshold clipped to [-1.0,0.0], target audit rate 0.25, default max audits 6 per 24h episode, cooldown 2 steps"
 python scripts/evaluate.py \
   --config "$CONFIG" \
   --policies "static" \
