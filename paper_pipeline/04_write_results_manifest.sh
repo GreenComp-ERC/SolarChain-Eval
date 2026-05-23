@@ -14,49 +14,49 @@ MANIFEST="$PAPER_RUN_DIR/PAPER_RESULTS.md"
 mkdir -p "$PAPER_RUN_DIR"
 
 cat > "$MANIFEST" <<EOF
-# SolarChain-Eval 论文实验结果清单
+# SolarChain-Eval Paper Results
 
-生成时间 UTC：$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+Generated at UTC: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-本文档对应计划投稿 **KDD Workshop on Evaluation and Trustworthiness of Agentic AI** 的实验流水线。
+This manifest summarizes the experiment artifacts for the planned **KDD Workshop on Evaluation and Trustworthiness of Agentic AI** submission.
 
-## 统一输出目录
+## Unified Output Directory
 
-本次实验所有产物集中在：
+All artifacts for this experiment are stored under:
 
 \`\`\`text
 $PAPER_RUN_DIR
 \`\`\`
 
-核心配置：
+Primary configuration:
 
 \`\`\`text
 configs/month_2026_04.yaml
 \`\`\`
 
-核心数据：
+Primary dataset:
 
 \`\`\`text
 data/datasets_2026_04_month
 \`\`\`
 
-数据覆盖 Beijing、Shanghai、Chengdu、Shenzhen、Hangzhou 五个城市，时间窗口为 \`[2026-04-01, 2026-05-01)\`，共 720 个小时。训练和评估均使用 \`episode_steps=24\`，每次环境 reset 采样一个完整日。
+The dataset covers five cities, Beijing, Shanghai, Chengdu, Shenzhen, and Hangzhou, over \`[2026-04-01, 2026-05-01)\` with 720 hourly timestamps. Training and evaluation use \`episode_steps=24\`; each environment reset samples one complete day.
 
-## 元数据
+## Metadata
 
 - \`$PAPER_RUN_DIR/dataset_summary.json\`
 - \`$PAPER_RUN_DIR/paper_run_metadata.json\`
 - \`$PAPER_RUN_DIR/PAPER_RESULTS.md\`
 
-## 主实验
+## Main Experiment
 
-运行目录：
+Run directory:
 
 \`\`\`text
 $MAIN_RUN
 \`\`\`
 
-主要文件：
+Primary files:
 
 - \`$MAIN_RUN/summary.json\`
 - \`$MAIN_RUN/metrics.csv\`
@@ -68,21 +68,21 @@ $MAIN_RUN
 - \`$MAIN_RUN/models/sac/sac_model.zip\`
 - \`$MAIN_RUN/models/dqn/dqn_model.zip\`
 
-图表：
+Figures:
 
 - \`$PAPER_RUN_DIR/figures/main/learning_curves.png\`
 - \`$PAPER_RUN_DIR/figures/main/safety_utility_frontier.png\`
 - \`$PAPER_RUN_DIR/figures/main/city_hour_liquidity_heatmap.png\`
 
-## No-Physics-Penalty 消融
+## No-Physics-Penalty Ablation
 
-运行目录：
+Run directory:
 
 \`\`\`text
 $ABLATION_RUN
 \`\`\`
 
-主要文件：
+Primary files:
 
 - \`$ABLATION_RUN/summary.json\`
 - \`$ABLATION_RUN/metrics.csv\`
@@ -94,7 +94,7 @@ $ABLATION_RUN
 - \`$ABLATION_RUN/models/sac/sac_model.zip\`
 - \`$ABLATION_RUN/models/dqn/dqn_model.zip\`
 
-图表：
+Figures:
 
 - \`$PAPER_RUN_DIR/figures/ablation_no_physics_penalty/learning_curves.png\`
 - \`$PAPER_RUN_DIR/figures/ablation_no_physics_penalty/safety_utility_frontier.png\`
@@ -102,21 +102,21 @@ $ABLATION_RUN
 
 ## Eval-Only LLM Agentic Layer
 
-Agentic evaluation 复用已训练 RL 模型，在 policy 输出 action 后插入 LLM Planner + LLM Auditor。LLM 只参与 evaluation，不参与 PPO/SAC/DQN training。
+Agentic evaluation reuses trained RL models and inserts an LLM Planner + LLM Auditor between policy action prediction and \`env.step()\`. The LLM is used only during evaluation and never during PPO/SAC/DQN training.
 
-Agentic 主实验目录：
-
-\`\`\`text
-${AGENTIC_RUN:-未生成}
-\`\`\`
-
-Agentic no-physics 目录：
+Agentic main run directory:
 
 \`\`\`text
-${AGENTIC_ABLATION_RUN:-未生成}
+${AGENTIC_RUN:-not generated}
 \`\`\`
 
-若已生成，应包含：
+Agentic no-physics run directory:
+
+\`\`\`text
+${AGENTIC_ABLATION_RUN:-not generated}
+\`\`\`
+
+Expected files, when generated:
 
 - \`${AGENTIC_RUN:-<agentic_run>}/summary.json\`
 - \`${AGENTIC_RUN:-<agentic_run>}/metrics.csv\`
@@ -127,9 +127,9 @@ ${AGENTIC_ABLATION_RUN:-未生成}
 - \`$PAPER_RUN_DIR/figures/agentic/*.png\`
 - \`$PAPER_RUN_DIR/figures/agentic_no_physics_penalty/*.png\`
 
-## 论文指标
+## Metrics To Report
 
-主表指标：
+Main table metrics:
 
 - cumulative_reward
 - physics_violation_rate
@@ -139,7 +139,7 @@ ${AGENTIC_ABLATION_RUN:-未生成}
 - spatial_fairness_index
 - artificial_liquidity_MWh
 
-agentic 指标：
+Agentic metrics:
 
 - plan_validity_rate
 - audit_call_rate
@@ -148,11 +148,11 @@ agentic 指标：
 - avg_action_delta_from_auditor
 - llm_failure_count
 
-## 图表对应关系
+## Figure Mapping
 
-- \`learning_curves.png\`：各 policy 的 reward vs. episode。
-- \`safety_utility_frontier.png\`：physics violation rate vs. cumulative reward。
-- \`city_hour_liquidity_heatmap.png\`：城市与小时维度下的 liquidity policy。
+- \`learning_curves.png\`: reward vs. episode for each policy.
+- \`safety_utility_frontier.png\`: physics violation rate vs. cumulative reward.
+- \`city_hour_liquidity_heatmap.png\`: liquidity policy by city and hour.
 
 EOF
 

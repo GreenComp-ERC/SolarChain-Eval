@@ -280,7 +280,7 @@ python -c "import json, os; from pathlib import Path; p=Path(r'$PaperDir'); meta
 @"
 # Windows Tiny Smoke Results
 
-用途：KDD Workshop on Evaluation and Trustworthiness of Agentic AI 投稿前的 Windows 工程 smoke。
+Purpose: Windows engineering smoke test for the planned KDD Workshop on Evaluation and Trustworthiness of Agentic AI submission.
 
 ## Runs
 
@@ -307,7 +307,7 @@ python -c "import json, os; from pathlib import Path; p=Path(r'$PaperDir'); meta
 - $PaperDir\figures\agentic
 - $PaperDir\figures\agentic_no_physics_penalty
 
-说明：本 run 使用 tiny timesteps，仅验证完整流程和产物结构，不作为论文数值结论。
+Note: This run uses tiny training timesteps. It validates the full workflow and artifact structure only; it should not be used for paper-level numerical conclusions.
 "@ | Set-Content -Path "$PaperDir\PAPER_RESULTS.md" -Encoding UTF8
 ```
 
