@@ -143,16 +143,85 @@ PY
 
 ## 5. 正式实验命令
 
-推荐最终 run：
+鉴于投稿目标是 **KDD Workshop on Evaluation and Trustworthiness of Agentic AI**，正式结果优先采用 3 个 seed 的 LLM Planner/Auditor 实验，而不是只跑单 seed。多 seed 的目的不是改变数据集，而是改变 RL 初始化与 evaluation episode 采样，从而给 trustworthiness 指标提供更稳健的均值和标准差。
+
+数据生成仍使用固定 `DATA_SEED=20260511`，保证 2026-04 五城市月度数据一致。多 seed 只通过临时 config 改动顶层 `seed:` 字段实现。
+
+先准备 3 份 seed config：
 
 ```bash
-PAPER_RUN_ID=paper_final \
+mkdir -p outputs/multiseed_configs
+
+cp configs/month_2026_04.yaml outputs/multiseed_configs/month_2026_04_seed_20260511.yaml
+sed -i "s/^seed:.*/seed: 20260511/" outputs/multiseed_configs/month_2026_04_seed_20260511.yaml
+
+cp configs/month_2026_04.yaml outputs/multiseed_configs/month_2026_04_seed_20260512.yaml
+sed -i "s/^seed:.*/seed: 20260512/" outputs/multiseed_configs/month_2026_04_seed_20260512.yaml
+
+cp configs/month_2026_04.yaml outputs/multiseed_configs/month_2026_04_seed_20260513.yaml
+sed -i "s/^seed:.*/seed: 20260513/" outputs/multiseed_configs/month_2026_04_seed_20260513.yaml
+```
+
+推荐正式 LLM run，seed 20260511：
+
+```bash
+CONFIG=outputs/multiseed_configs/month_2026_04_seed_20260511.yaml \
+PAPER_RUN_ID=paper_final_seed_20260511 \
 TIMESTEPS=300000 \
 EPISODES=30 \
 RUN_AGENTIC=1 \
 AGENTIC_POLICIES=ppo,sac,dqn \
 AGENTIC_PLANNER=llm \
 AGENTIC_AUDITOR=llm \
+AGENTIC_AUDIT_TRIGGER=event \
+bash paper_pipeline/02_run_paper_experiments.sh
+```
+
+推荐正式 LLM run，seed 20260512：
+
+```bash
+CONFIG=outputs/multiseed_configs/month_2026_04_seed_20260512.yaml \
+PAPER_RUN_ID=paper_final_seed_20260512 \
+TIMESTEPS=300000 \
+EPISODES=30 \
+RUN_AGENTIC=1 \
+AGENTIC_POLICIES=ppo,sac,dqn \
+AGENTIC_PLANNER=llm \
+AGENTIC_AUDITOR=llm \
+AGENTIC_AUDIT_TRIGGER=event \
+bash paper_pipeline/02_run_paper_experiments.sh
+```
+
+推荐正式 LLM run，seed 20260513：
+
+```bash
+CONFIG=outputs/multiseed_configs/month_2026_04_seed_20260513.yaml \
+PAPER_RUN_ID=paper_final_seed_20260513 \
+TIMESTEPS=300000 \
+EPISODES=30 \
+RUN_AGENTIC=1 \
+AGENTIC_POLICIES=ppo,sac,dqn \
+AGENTIC_PLANNER=llm \
+AGENTIC_AUDITOR=llm \
+AGENTIC_AUDIT_TRIGGER=event \
+bash paper_pipeline/02_run_paper_experiments.sh
+```
+
+如果服务器时间或 LLM budget 紧张，优先保留 3 个 seed，把 `TIMESTEPS` 降到 `100000` 或 `150000`，不要优先退回单 seed。论文表格建议报告 3 个 seed 的均值和标准差。
+
+在 3 个 LLM seed 完成后，建议额外跑 1 个 rule agentic 对照，用于区分“agentic guardrail 结构本身”和“LLM structured reasoning”的贡献。该对照不替代 LLM 主结果，可作为补充消融或 appendix 结果。
+
+推荐 rule agentic run：
+
+```bash
+CONFIG=outputs/multiseed_configs/month_2026_04_seed_20260511.yaml \
+PAPER_RUN_ID=paper_rule_agentic_seed_20260511 \
+TIMESTEPS=300000 \
+EPISODES=30 \
+RUN_AGENTIC=1 \
+AGENTIC_POLICIES=ppo,sac,dqn \
+AGENTIC_PLANNER=rule \
+AGENTIC_AUDITOR=rule \
 AGENTIC_AUDIT_TRIGGER=event \
 bash paper_pipeline/02_run_paper_experiments.sh
 ```
@@ -189,13 +258,13 @@ agentic eval 的 `summary.json` 会记录 planner validity、audit call rate、r
 设：
 
 ```text
-PAPER_RUN_ID=paper_final
+PAPER_RUN_ID=paper_final_seed_20260511
 ```
 
 则统一输出目录为：
 
 ```text
-outputs/paper_final/
+outputs/paper_final_seed_20260511/
 ```
 
 预期包含：
@@ -225,7 +294,7 @@ figures/agentic_no_physics_penalty/city_hour_liquidity_heatmap.png
 主实验 run：
 
 ```text
-outputs/paper_final/runs/main/
+outputs/paper_final_seed_20260511/runs/main/
 ```
 
 预期包含：
@@ -245,7 +314,7 @@ models/dqn/dqn_model.zip
 no-physics run：
 
 ```text
-outputs/paper_final/runs/no_physics_penalty/
+outputs/paper_final_seed_20260511/runs/no_physics_penalty/
 ```
 
 预期包含同样文件，并且 `run_metadata.json` 中 `no_physics_penalty=true`。
@@ -253,7 +322,7 @@ outputs/paper_final/runs/no_physics_penalty/
 agentic run：
 
 ```text
-outputs/paper_final/runs/agentic_llm_llm/
+outputs/paper_final_seed_20260511/runs/agentic_llm_llm/
 ```
 
 预期包含：
@@ -271,7 +340,7 @@ agentic_logs.jsonl
 agentic no-physics run：
 
 ```text
-outputs/paper_final/runs/agentic_llm_llm_no_physics_penalty/
+outputs/paper_final_seed_20260511/runs/agentic_llm_llm_no_physics_penalty/
 ```
 
 预期包含同样 agentic 文件。
@@ -325,7 +394,13 @@ agentic 表：
 只跑 rule agentic 对照：
 
 ```bash
-AGENTIC_PLANNER=rule AGENTIC_AUDITOR=rule bash paper_pipeline/02_run_paper_experiments.sh
+CONFIG=outputs/multiseed_configs/month_2026_04_seed_20260511.yaml \
+PAPER_RUN_ID=paper_rule_agentic_seed_20260511 \
+TIMESTEPS=300000 \
+EPISODES=30 \
+AGENTIC_PLANNER=rule \
+AGENTIC_AUDITOR=rule \
+bash paper_pipeline/02_run_paper_experiments.sh
 ```
 
 跳过 agentic：
