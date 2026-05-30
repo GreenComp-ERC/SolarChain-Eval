@@ -41,6 +41,27 @@ configs/month_2026_04.yaml
 data/datasets_2026_04_month/
 ```
 
+## Dataset Hosting
+
+Canonical dataset hosting is planned on Hugging Face Datasets:
+
+```text
+https://huggingface.co/datasets/ThomasXu/solarchain-eval
+```
+
+The GitHub repository keeps a small mirror under:
+
+```text
+data/datasets_2026_04_month/
+data/datasets/
+```
+
+The Hugging Face release includes the dataset card, dataset license, summary, checksums, main monthly CSVs, smoke CSVs, and the Open-Meteo cache. The public GitHub repository is:
+
+```text
+https://github.com/GreenComp-ERC/SolarChain-Eval
+```
+
 Built-in policy comparisons:
 
 - Static 1:3 split

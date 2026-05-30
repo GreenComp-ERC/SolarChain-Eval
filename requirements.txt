@@ -10,3 +10,4 @@ pytest>=8.0
 pvlib>=0.10
 requests>=2.31
 tqdm>=4.66
+huggingface_hub>=0.23

@@ -26,6 +26,20 @@ Primary dataset:
 data/datasets_2026_04_month/
 ```
 
+Canonical hosted dataset:
+
+```text
+https://huggingface.co/datasets/ThomasXu/solarchain-eval
+```
+
+The GitHub repo keeps a small data mirror for convenience. The Hugging Face Dataset repo is the reviewer-facing dataset source and includes `dataset_summary.json`, `checksums.sha256`, the main monthly CSVs, the smoke CSVs, and the Open-Meteo cache.
+
+Public code repository:
+
+```text
+https://github.com/GreenComp-ERC/SolarChain-Eval
+```
+
 Dataset window:
 
 ```text

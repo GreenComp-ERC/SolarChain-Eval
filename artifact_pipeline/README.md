@@ -61,6 +61,22 @@ export OPENAI_MODEL="..."
 
 If `--planner llm` or `--auditor llm` is enabled and the endpoint is missing or incompatible with structured outputs, evaluation fails instead of silently producing substitute results.
 
+## Dataset Hosting
+
+The canonical dataset URL is:
+
+```text
+https://huggingface.co/datasets/ThomasXu/solarchain-eval
+```
+
+The GitHub repository retains a mirror in `data/` for lightweight reproducibility. The HF package contains `dataset_summary.json` and `checksums.sha256`. Use those files to verify that the HF release, GitHub mirror, and local data are consistent.
+
+Public code repository:
+
+```text
+https://github.com/GreenComp-ERC/SolarChain-Eval
+```
+
 ## Official Pipeline
 
 The main convenience command is:
