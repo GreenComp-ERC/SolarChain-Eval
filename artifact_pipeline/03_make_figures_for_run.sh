@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if [[ $# -lt 1 ]]; then
-  echo "Usage: bash paper_pipeline/03_make_figures_for_run.sh <run_dir> [figures_dir]" >&2
+  echo "Usage: bash artifact_pipeline/03_make_figures_for_run.sh <run_dir> [figures_dir]" >&2
   exit 1
 fi
 

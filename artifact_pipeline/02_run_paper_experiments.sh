@@ -246,7 +246,7 @@ else
 fi
 
 echo "[9/9] Paper results manifest"
-bash paper_pipeline/04_write_results_manifest.sh "$MAIN_RUN" "$ABLATION_RUN" "$PAPER_RUN_DIR" "${AGENTIC_RUN:-}" "${AGENTIC_ABLATION_RUN:-}"
+bash artifact_pipeline/04_write_results_manifest.sh "$MAIN_RUN" "$ABLATION_RUN" "$PAPER_RUN_DIR" "${AGENTIC_RUN:-}" "${AGENTIC_ABLATION_RUN:-}"
 
 echo "Paper pipeline complete"
 
